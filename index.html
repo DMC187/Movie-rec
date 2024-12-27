@@ -3,90 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trakt Movie Recommender</title>
+    <title>Trakt Movie Recommendations</title>
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; }
         button { padding: 10px; background-color: #007bff; color: white; border: none; cursor: pointer; }
         button:hover { background-color: #0056b3; }
         #recommendations { margin-top: 20px; }
-        #login { margin-top: 10px; }
     </style>
 </head>
 <body>
-    <h1>Trakt Movie Recommender</h1>
-    
-    <!-- Trakt Username Input -->
+    <h1>Trakt Movie Recommendations</h1>
+
+    <!-- Input for Trakt Username -->
     <div id="login">
         <label for="traktUsername">Enter your Trakt Username:</label>
         <input type="text" id="traktUsername" placeholder="Enter Trakt Username" />
-        <button id="fetchDataButton">Fetch Data</button>
+        <br><br>
+        <button id="fetchDataButton">Get Movie Recommendations</button>
     </div>
-    
+
     <div id="recommendations"></div>
 
     <script>
-        // Function to fetch public ratings from Trakt by username
-        async function fetchPublicRatings(username) {
-            const url = `https://api.trakt.tv/users/${username}/ratings/movies`;
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            });
+        // Function to fetch the watch history and ratings from Trakt
+        async function fetchTraktData(username) {
+            const watchHistoryUrl = `https://api.trakt.tv/users/${username}/history`;
+            const ratingsUrl = `https://api.trakt.tv/users/${username}/ratings/movies`;
 
-            const ratings = await response.json();
-            recommendMovies(ratings);
-        }
-
-        // Function to recommend movies based on favorite genres
-        function recommendMovies(ratings) {
-            if (!ratings || ratings.length === 0) {
-                document.getElementById('recommendations').innerHTML = '<p>No movie ratings found for this user.</p>';
-                return;
-            }
-
-            const genreCounts = {};
-            ratings.forEach(item => {
-                const movie = item.movie;
-                const genres = movie.genres;
-                genres.forEach(genre => {
-                    genreCounts[genre] = (genreCounts[genre] || 0) + 1;
-                });
-            });
-
-            const favoriteGenres = Object.keys(genreCounts).sort((a, b) => genreCounts[b] - genreCounts[a]).slice(0, 3);
-            const recommendationsDiv = document.getElementById('recommendations');
-            recommendationsDiv.innerHTML = `<h2>Your Favorite Genres: ${favoriteGenres.join(', ')}</h2>`;
-            recommendationsDiv.innerHTML += "<p>Here are some recommendations:</p>";
-
-            favoriteGenres.forEach(async (genre) => {
-                const genreUrl = `https://api.trakt.tv/movies/popular?genres=${genre}&limit=5`;
-                const genreResponse = await fetch(genreUrl, {
+            try {
+                const watchHistoryResponse = await fetch(watchHistoryUrl, {
                     method: 'GET',
                     headers: {
-                        'Content-Type': 'application/json',
+                        'Content-Type': 'application/json'
                     }
                 });
 
-                const movies = await genreResponse.json();
-                displayMovies(movies);
-            });
+                const ratingsResponse = await fetch(ratingsUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const watchHistory = await watchHistoryResponse.json();
+                const ratings = await ratingsResponse.json();
+
+                recommendMovies(watchHistory, ratings);
+            } catch (error) {
+                console.error("Error fetching data from Trakt:", error);
+                document.getElementById('recommendations').innerHTML = `<p>Error fetching data. Please check the username.</p>`;
+            }
         }
 
-        // Function to display the recommended movies
-        function displayMovies(movies) {
+        // Function to recommend movies based on history and ratings
+        function recommendMovies(watchHistory, ratings) {
+            const watchedMovieIds = new Set(watchHistory.map(item => item.movie.ids.trakt));
+            const ratedMovies = ratings.filter(item => item.rating >= 7); // Customize the rating filter here (e.g., only movies rated 7+)
+
+            // Filter out movies that have been watched
+            const filteredMovies = ratedMovies.filter(movie => !watchedMovieIds.has(movie.movie.ids.trakt));
+
+            // Display the recommendations
             const recommendationsDiv = document.getElementById('recommendations');
-            movies.forEach(movie => {
-                recommendationsDiv.innerHTML += `<p>${movie.title} (${movie.year})</p>`;
-            });
+            recommendationsDiv.innerHTML = "<h2>Movie Recommendations:</h2>";
+
+            if (filteredMovies.length === 0) {
+                recommendationsDiv.innerHTML += "<p>No new recommendations available based on your ratings.</p>";
+            } else {
+                filteredMovies.forEach(movie => {
+                    recommendationsDiv.innerHTML += `<p>${movie.movie.title} (${movie.movie.year}) - Rating: ${movie.rating}</p>`;
+                });
+            }
         }
 
         // Fetch Data button click event
         document.getElementById('fetchDataButton').addEventListener('click', function() {
             const traktUsername = document.getElementById('traktUsername').value;
             if (traktUsername) {
-                fetchPublicRatings(traktUsername);
+                fetchTraktData(traktUsername);
             } else {
                 alert("Please enter a valid Trakt username.");
             }
