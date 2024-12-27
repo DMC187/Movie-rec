@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trakt Movie Recommender</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        button { padding: 10px; background-color: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        #recommendations { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Trakt Movie Recommender</h1>
+    <button onclick="authenticate()">Authenticate with Trakt</button>
+    <div id="recommendations"></div>
+
+    <script>
+        // Replace with your actual Trakt API client credentials
+        const CLIENT_ID = "your_trakt_client_id"; 
+        const CLIENT_SECRET = "your_trakt_client_secret"; 
+        const REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob"; // Redirect URI
+
+        // Function to authenticate and get the access token
+        async function authenticate() {
+            // Step 1: Redirect user to the Trakt authorization URL
+            const authorizationUrl = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
+            window.location.href = authorizationUrl;
+
+            // Step 2: After authorization, Trakt will redirect to the `redirect_uri` with a `code`
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code'); // The authorization code from Trakt
+
+            if (code) {
+                // Step 3: Exchange the authorization code for an access token
+                const accessToken = await getAccessToken(code);
+                if (accessToken) {
+                    // Fetch and display movie recommendations after successful authentication
+                    fetchRatings(accessToken);
+                }
+            }
+        }
+
+        // Function to get the access token
+        async function getAccessToken(code) {
+            const tokenUrl = "https://api.trakt.tv/oauth/token";
+            const data = {
+                code: code,
+                client_id: CLIENT_ID,
+                client_secret: CLIENT_SECRET,
+                redirect_uri: REDIRECT_URI,
+                grant_type: "authorization_code"
+            };
+
+            const response = await fetch(tokenUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams(data)
+            });
+
+            const result = await response.json();
+            return result.access_token;
+        }
+
+        // Function to fetch movie ratings and recommendations
+        async function fetchRatings(accessToken) {
+            // Fetch ratings data
+            const url = "https://api.trakt.tv/sync/ratings/movies";
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                    'trakt-api-version': '2',
+                    'trakt-api-key': CLIENT_ID
+                }
+            });
+
+            const ratings = await response.json();
+            recommendMovies(ratings);
+        }
+
+        // Function to recommend movies based on favorite genres
+        function recommendMovies(ratings) {
+            // Create a map to count movie genres
+            const genreCounts = {};
+
+            ratings.forEach(item => {
+                const movie = item.movie;
+                const genres = movie.genres;
+
+                genres.forEach(genre => {
+                    genreCounts[genre] = (genreCounts[genre] || 0) + 1;
+                });
+            });
+
+            // Get the top 3 favorite genres
+            const favoriteGenres = Object.keys(genreCounts).sort((a, b) => genreCounts[b] - genreCounts[a]).slice(0, 3);
+
+            // Display favorite genres
+            const recommendationsDiv = document.getElementById('recommendations');
+            recommendationsDiv.innerHTML = `<h2>Your Favorite Genres: ${favoriteGenres.join(', ')}</h2>`;
+            recommendationsDiv.innerHTML += "<p>Here are some recommendations:</p>";
+
+            // Fetch and display recommended movies for each genre
+            favoriteGenres.forEach(async (genre) => {
+                const genreUrl = `https://api.trakt.tv/movies/popular?genres=${genre}&limit=5`;
+                const genreResponse = await fetch(genreUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'trakt-api-version': '2',
+                        'trakt-api-key': CLIENT_ID
+                    }
+                });
+
+                const movies = await genreResponse.json();
+                displayMovies(movies);
+            });
+        }
+
+        // Function to display the recommended movies
+        function displayMovies(movies) {
+            const recommendationsDiv = document.getElementById('recommendations');
+            movies.forEach(movie => {
+                recommendationsDiv.innerHTML += `<p>${movie.title} (${movie.year})</p>`;
+            });
+        }
+    </script>
+</body>
+</html>
