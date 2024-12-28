@@ -1,5 +1,5 @@
-const TRAKT_CLIENT_ID = "your_trakt_client_id"; // Replace with your Trakt Client ID
-const REDIRECT_URI = "http://localhost"; // Replace with your live URL for production
+const TRAKT_CLIENT_ID = "f5347bc644ec7a0abfb0e5872255f90f901c396feee2ee9f52078fa77db97c30"; // Replace with your Trakt Client ID
+const REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob"; // Replace with your live URL for production
 
 // Log in button event listener
 document.getElementById("login-btn").addEventListener("click", () => {
