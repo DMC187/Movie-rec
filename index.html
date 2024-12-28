@@ -1,137 +1,55 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Movie Recommendations</title>
-    <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        button { padding: 10px; background-color: #007bff; color: white; border: none; cursor: pointer; }
-        button:hover { background-color: #0056b3; }
-        .movie { margin-bottom: 15px; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Movie Recommendations</title>
+  <style>
+    .movie-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+    }
+    .movie-card {
+      text-align: center;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 10px;
+    }
+  </style>
 </head>
 <body>
-    <h1>Movie Recommendations</h1>
+  <h1>Movie Recommendations</h1>
+  <div id="movie-list" class="movie-grid"></div>
+  <script>
+    const API_URL = 'https://your-backend-domain/movies';
 
-    <!-- Section to Sync Trakt Account -->
-    <div id="traktSync">
-        <h2>Sync Trakt Account</h2>
-        <label for="traktUsername">Enter your Trakt Username:</label>
-        <input type="text" id="traktUsername" placeholder="Enter Trakt Username" />
-        <button id="syncTrakt">Sync Watch History</button>
-    </div>
+    async function fetchMovies(page = 1) {
+      const response = await fetch(`${API_URL}?page=${page}`);
+      const movies = await response.json();
+      renderMovies(movies);
+    }
 
-    <div id="syncStatus"></div>
+    function renderMovies(movies) {
+      const movieList = document.getElementById('movie-list');
+      movieList.innerHTML = movies
+        .map(
+          movie => `
+            <div class="movie-card">
+              <img src="${movie.Poster}" alt="${movie.Title}" />
+              <h3>${movie.Title}</h3>
+              <p>IMDb Rating: ${movie.imdbRating}</p>
+              <div>
+                <a href="https://www.imdb.com/title/${movie.imdbID}" target="_blank">IMDb</a>
+                <a href="https://trakt.tv/movies/${movie.imdbID}" target="_blank">Trakt</a>
+              </div>
+            </div>
+          `
+        )
+        .join('');
+    }
 
-    <hr>
-
-    <!-- Button to Fetch Recommendations -->
-    <button id="recommendMovies">Get Recommendations</button>
-
-    <!-- Recommendations Section -->
-    <div id="recommendations"></div>
-
-    <script>
-        // Initialize watched movies list
-        let watchedMovies = [];
-
-        // Function to fetch Trakt watch history
-        async function syncTraktHistory(username) {
-            const traktApiKey = 'YOUR_TRAKT_CLIENT_ID'; // Replace with your Trakt API Client ID
-            const corsProxy = 'https://cors-anywhere.herokuapp.com/'; // CORS Proxy (for development only)
-            const traktUrl = `${corsProxy}https://api.trakt.tv/users/${username}/history/movies`;
-
-            try {
-                const response = await fetch(traktUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'trakt-api-key': traktApiKey,
-                        'trakt-api-version': '2',
-                    },
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch Trakt history: ${response.status} ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                watchedMovies = data.map(item => item.movie.title.toLowerCase()); // Store watched movie titles
-                document.getElementById('syncStatus').innerHTML = `<p>Synced ${watchedMovies.length} watched movies from Trakt.</p>`;
-            } catch (error) {
-                console.error("Error syncing Trakt history:", error);
-                document.getElementById('syncStatus').innerHTML = `<p>Error syncing Trakt history. Please check the username or try again later.</p>`;
-            }
-        }
-
-        // Function to fetch movies
-        async function fetchMovies() {
-            try {
-                const response = await fetch('https://api.tvmaze.com/shows'); // Example API
-                const movies = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch movies: ${response.status} ${response.statusText}`);
-                }
-
-                return movies;
-            } catch (error) {
-                console.error("Error fetching movie data:", error);
-                return [];
-            }
-        }
-
-        // Function to recommend movies
-        async function recommendMovies() {
-            const recommendationsDiv = document.getElementById('recommendations');
-            recommendationsDiv.innerHTML = "<h2>Loading recommendations...</h2>";
-
-            const movies = await fetchMovies();
-
-            // Filter movies based on criteria and watched list
-            const filteredMovies = movies.filter(movie => {
-                const currentYear = new Date().getFullYear();
-                const movieYear = parseInt(movie.premiered?.split('-')[0], 10) || 0; // Use 'premiered' as release year
-                const imdbRating = parseFloat(movie.rating?.average) || 0; // Use 'rating.average' as IMDb rating
-                const isWatched = watchedMovies.includes(movie.name.toLowerCase());
-
-                return (
-                    movieYear >= currentYear - 10 && // Last 10 years
-                    imdbRating >= 6.5 &&             // Minimum IMDb rating of 6.5
-                    !isWatched                       // Exclude already watched movies
-                );
-            });
-
-            // Display results
-            recommendationsDiv.innerHTML = "<h2>Recommended Movies:</h2>";
-
-            if (filteredMovies.length === 0) {
-                recommendationsDiv.innerHTML += "<p>No movies match the criteria.</p>";
-            } else {
-                filteredMovies.forEach(movie => {
-                    recommendationsDiv.innerHTML += `
-                        <div class="movie">
-                            <strong>${movie.name} (${movie.premiered.split('-')[0]})</strong>
-                            <p>IMDb Rating: ${movie.rating.average}</p>
-                        </div>
-                    `;
-                });
-            }
-        }
-
-        // Event listener for syncing Trakt history
-        document.getElementById('syncTrakt').addEventListener('click', () => {
-            const username = document.getElementById('traktUsername').value.trim();
-            if (username) {
-                syncTraktHistory(username);
-            } else {
-                alert("Please enter a valid Trakt username.");
-            }
-        });
-
-        // Event listener for getting recommendations
-        document.getElementById('recommendMovies').addEventListener('click', recommendMovies);
-    </script>
+    fetchMovies();
+  </script>
 </body>
 </html>
